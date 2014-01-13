@@ -26,14 +26,33 @@ class CephStatsCollector(ceph.CephCollector):
             self.log.exception('Could not get stats')
             return {}
 
+        convert = {'B': 1, 'K': 1000, 'M': 1000000, 'G': 1000000000}
+ 
         pattern = re.compile(r'\bclient io .*')
         ceph_stats = pattern.search(output).group()
         number = re.compile(r'\d+')
-        rd = number.search(ceph_stats)
-        wr = number.search(ceph_stats, rd.end())
-        iops = number.search(ceph_stats, wr.end())
+        unit = re.compile(r'\w+')
 
-        return {'rd': rd.group(), 'wr': wr.group(), 'iops': iops.group()}
+        rd = number.search(ceph_stats)
+        rd_unit = unit.search(ceph_stats, rd.end()).group().upper()[0]
+        if rd_unit not in convert:
+            rd_unit = 'B'
+
+        wr = number.search(ceph_stats, rd.end())
+        wr_unit = unit.search(ceph_stats, wr.end()).group().upper()[0]
+        if wr_unit not in convert:
+            wr_unit = 'B'
+
+        iops = number.search(ceph_stats, wr.end())
+        iops_unit = unit.search(ceph_stats, iops.end()).group().upper()[0]
+        if iops_unit not in convert:
+            iops_unit = 'B'
+ 
+        return {
+                'rd': str(int(rd.group()) * convert[rd_unit]),
+                'wr': str(int(wr.group()) * convert[wr_unit]),
+                'iops': str(int(iops.group()) * convert[iops_unit])
+                }
 
     def collect(self):
         """
